@@ -1,59 +1,49 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/rueidis"
 	"github.com/stretchr/testify/assert"
 )
 
 // NewClient initializes a new Redis client
-func NewClient(addr string) *Redis {
-	rdb := redis.NewClient(&redis.Options{
-		 Addr:     addr,
-		 Password: "", // no password set
-		 DB:       0,  // use default DB
+func NewClient(redisHost string, redisUsername string, redisPassword string) *Redis {
+	client, err := rueidis.NewClient(rueidis.ClientOption{
+		InitAddress:  []string{redisHost},
+		Username:     redisUsername,
+		Password:     redisPassword,
+		DisableCache: true,
 	})
+	if err != nil {
+		panic(err)
+	}
 
-	return &Redis{client: rdb}
+	return &Redis{client: client}
 }
 
 // TestNewClient tests the initialization of the Redis client
 func TestNewClient(t *testing.T) {
-    // Initialize Redis client
-    client := NewClient("127.0.0.1:6379") // Make sure Redis is running locally
-    assert.NotNil(t, client, "Redis client should be initialized")
+	// Replace with your actual Redis host and credentials
+	redisHost := ""
+	redisUsername := ""
+	redisPassword := ""
 
-    // Ping Redis to verify connection
-    res, err := client.Ping()
-	 fmt.Println("err", err)
-    assert.Nil(t, err, "Ping should not return an error")
-    assert.Equal(t, "PONG", res, "Ping response should be 'PONG'")
-}
+	// Initialize Redis client
+	redis := NewClient(redisHost, redisUsername, redisPassword)
+	assert.NotNil(t, redis, "Redis client should be initialized")
 
-// TestSetGet tests setting and getting values from Redis
-func TestSetGet(t *testing.T) {
-    // Initialize Redis client
-    client := NewClient("127.0.0.1:6379") // Ensure the Redis server is running locally
+	// Ping Redis to verify connection
+	res := redis.client.Do(ctx, redis.client.B().Ping().Build())
 
-    // Set a key-value pair in Redis
-    err := client.Set("test-key", "test-value")
-    assert.Nil(t, err, "Set should not return an error")
+	// Extract the message and error
+	msg, err := res.ToMessage()
+	if err != nil {
+		t.Fatalf("Failed to get PING response: %v", err)
+	}
 
-    // Get the value from Redis by key
-    value, err := client.Get("test-key")
-    assert.Nil(t, err, "Get should not return an error")
-    assert.Equal(t, "test-value", value, "The value returned should be 'test-value'")
-}
+	pong := msg.String()
 
-// TestGetNonExistentKey tests retrieving a non-existent key from Redis
-func TestGetNonExistentKey(t *testing.T) {
-    // Initialize Redis client
-    client := NewClient("127.0.0.1:6379") // Ensure the Redis server is running locally
-
-    // Try to get a non-existent key
-    value, err := client.Get("non-existent-key")
-    assert.NotNil(t, err, "Get should return an error for a non-existent key")
-    assert.Empty(t, value, "The value should be empty for a non-existent key")
+	// Assert that the response is "PONG"
+	assert.Equal(t, "{\"Value\":\"PONG\",\"Type\":\"simple string\"}", pong, "Ping response should be 'PONG'")
 }

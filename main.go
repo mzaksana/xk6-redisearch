@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
+	"log"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/rueidis"
 	"go.k6.io/k6/js/modules"
 )
 
@@ -11,37 +12,39 @@ var ctx = context.Background()
 
 // Register the module to be used from JavaScript
 func init() {
-    modules.Register("k6/x/redis", new(Redis))
+	modules.Register("k6/x/redis", new(Redis))
 }
 
-// Redis is the main struct that we will attach the Redis client to
+// Redis is the main struct that we will attach the RediSearch client to
 type Redis struct {
-    client *redis.Client
+	client rueidis.Client
 }
 
 // NewClient initializes a new Redis client
-func (*Redis) NewClient(addr string) *Redis {
-    rdb := redis.NewClient(&redis.Options{
-        Addr: addr,
-        Password: "", // no password set
-        DB: 0,  // use default DB
-    })
+func (*Redis) NewClient(redisHost string, redisUsername string, redisPassword string) *Redis {
+	client, err := rueidis.NewClient(rueidis.ClientOption{
+		InitAddress:  []string{redisHost},
+		Username:     redisUsername,
+		Password:     redisPassword,
+		DisableCache: true,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create Redis client: %v", err)
+	}
 
-    return &Redis{client: rdb}
+	return &Redis{client: client}
 }
 
-// Ping sends a PING command to Redis
-func (r *Redis) Ping() (string, error) {
-    return r.client.Ping(ctx).Result()
-}
+// Search performs a RediSearch query using FT.SEARCH
+func (r *Redis) Search(index, query string, limit int64) (string, error) {
+	// Construct the search query
+	searchCmd := r.client.B().FtSearch().Index(index).Query(query).Limit().OffsetNum(0, limit).Build()
 
-// Set sets a key-value pair in Redis
-func (r *Redis) Set(key, value string) error {
-    return r.client.Set(ctx, key, value, 0).Err()
-}
+	// Execute the search
+	res, err := r.client.Do(ctx, searchCmd).ToString()
+	if err != nil {
+		return "", err
+	}
 
-// Get retrieves a value from Redis by key
-func (r *Redis) Get(key string) (string, error) {
-    return r.client.Get(ctx, key).Result()
+	return res, nil
 }
-
