@@ -12,7 +12,7 @@ var ctx = context.Background()
 
 // Register the module to be used from JavaScript
 func init() {
-	modules.Register("k6/x/redis", new(Redis))
+	modules.Register("k6/x/redisearch", new(Redis))
 }
 
 // Redis is the main struct that we will attach the RediSearch client to
